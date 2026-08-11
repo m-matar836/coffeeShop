@@ -1,0 +1,11 @@
+{
+  "name": "Festival Reports",
+  "short_name": "Festival POS",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "dir": "rtl",
+  "lang": "ar",
+  "background_color": "#ffffff",
+  "theme_color": "#0d6efd",
+  "icons": []
+}

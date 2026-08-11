@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>إدخال التقارير - لوحة التحكم</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap-5-theme@1.3.0/dist/select2-bootstrap-5-theme.rtl.min.css" />
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+</head>
+<body>
+
+    <!-- =========== NAVBAR START =========== -->
+    <nav class="navbar navbar-expand-lg navbar-light bg-white shadow-sm">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="reports.html">
+                <i class="fa-solid fa-file-lines"></i>
+                لوحة التحكم
+            </a>  
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#mainNav" aria-controls="mainNav" aria-expanded="false" aria-label="Toggle navigation">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="mainNav">
+                <ul class="navbar-nav mb-2 mb-lg-0">
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-reports" href="reports.html">إدخال التقارير</a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link nav-link-history" href="history.html">سجل التعديلات</a>
+                    </li>
+                </ul>
+                <div class="d-flex align-items-center me-auto">
+                    <button type="button" class="btn btn-sm btn-outline-primary me-2" data-refresh-cache title="جلب أحدث البيانات من Google Sheets">
+                        <i class="fa-solid fa-arrows-rotate me-1"></i>تحديث البيانات
+                    </button>
+                    <span id="welcomeMessage" class="navbar-text me-3"></span>&nbsp;&nbsp; 
+                    <button id="logoutBtn" class="btn btn-sm btn-outline-danger"><i class="fa-solid fa-sign-out-alt me-1"></i>تسجيل الخروج</button>
+                </div>
+            </div>
+        </div>
+    </nav>
+    <!-- =========== NAVBAR END =========== -->
+
+    <!-- [إضافة جديدة] عنصر رسالة التنبيه المؤقتة (Toast) -->
+    <div id="toast-notification" class="toast-container">
+        <div class="toast-message"></div>
+    </div>
+    <div id="offline-status" class="position-fixed top-0 start-50 translate-middle-x mt-2 px-3 py-2 rounded-pill shadow-sm small fw-bold"
+         style="z-index:1080;display:none;"></div>
+
+    <div class="main-container">
+        <form id="reportForm" class="needs-validation" novalidate>
+            <!-- Report Info Card -->
+            <div class="card form-card">
+                <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseReportInfo">
+                    <span><i class="fa-solid fa-file-invoice me-2"></i>معلومات التقرير الأساسية</span>
+                    <i class="fa-solid fa-chevron-up collapse-icon"></i>
+                </div>
+                <div id="collapseReportInfo" class="collapse show">
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4"><label class="form-label">المحافظة</label><div class="input-group"><select id="governorate" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="governorate" title="إضافة محافظة"><i class="fa-solid fa-plus"></i></button></div></div>
+                            <div class="col-md-4"><label class="form-label">المنطقة</label><div class="input-group"><select id="region" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="region" title="إضافة منطقة"><i class="fa-solid fa-plus"></i></button></div></div>
+                            <div class="col-md-4"><label class="form-label">اسم المحل</label><div class="input-group"><select id="market_name" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="market" title="إضافة اسم محل"><i class="fa-solid fa-plus"></i></button></div></div>
+                            <div class="col-md-4"><label class="form-label">التاريخ</label><input type="date" id="date" class="form-control" required/></div>
+                            <div class="col-md-4"><label class="form-label">من الساعة</label><input type="time" id="timeFrom" class="form-control" required/></div>
+                            <div class="col-md-4"><label class="form-label">إلى الساعة</label><input type="time" id="timeTo" class="form-control" required/></div>
+                            <hr class="my-3">
+                            <div class="col-md-4">
+    <label class="form-label">المشرف</label>
+    <select id="supervisor" class="form-select" required>
+        <option value="" selected disabled>اختر المشرف...</option>
+    </select>
+</div>
+<div class="col-md-8">
+    <label class="form-label">الأشخاص المتواجدين ضمن النقطة</label>
+    <input type="hidden" id="promoter1" value="">
+    <input type="hidden" id="promoter2" value="">
+    <input type="hidden" id="promoter3" value="">
+    <input type="hidden" id="promoter4" value="">
+    <button type="button" class="btn btn-outline-primary w-100 text-start" id="openPromotersBtn">
+        <span class="d-flex align-items-center justify-content-center">
+            <i class="fa-solid fa-users me-1"></i>
+            <span id="selectedPromotersText">اختر الأشخاص المتواجدين ضمن النقطة...</span>
+        </span>
+    </button>
+    <div id="selectedPromotersBadges" class="mt-2 d-flex flex-wrap gap-1"></div>
+</div>
+</div>
+                    </div>
+                </div>
+            </div><br/>
+
+            <!-- Sales Card -->
+            <div class="card form-card">
+                <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseSalesTable">
+                    <span><i class="fa-solid fa-cash-register me-2"></i>جدول المبيعات</span>
+                    <i class="fa-solid fa-chevron-up collapse-icon"></i>
+                </div>
+                <div id="collapseSalesTable" class="collapse show">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="table-light"><tr><th>المادة</th><th style="width: 130px;">السعر</th><th style="width: 130px;">الكمية</th><th style="width: 150px;">المجموع</th><th style="width: 90px;">إجراء</th></tr></thead>
+                            <tbody id="sales-table-body"></tbody>
+                            <tfoot class="table-light fw-bold"><tr><td class="text-end" colspan="2">الإجمالي:</td><td id="totalQuantity">0</td><td id="grandTotal">0.00</td><td></td></tr></tfoot>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-light text-center"><button type="button" id="add-sale-row" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-plus"></i> إضافة مواد للبيع</button></div>
+                </div>
+            </div>
+
+            <!-- Expenses Card -->
+            <div class="card form-card">
+                <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseExpensesTable">
+                    <span><i class="fa-solid fa-file-alt me-2"></i>جدول المصاريف</span>
+                    <i class="fa-solid fa-chevron-up collapse-icon"></i>
+                </div>
+                <div id="collapseExpensesTable" class="collapse show">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="table-light"><tr>
+                                <th>المادة</th>
+                                <th style="width: 110px;">الكمية</th>
+                                <th style="min-width: 220px;">الملاحظات</th>
+                                <th style="min-width: 160px;">الحسم</th>
+                                <th style="width: 90px;">إجراء</th>
+                            </tr></thead>
+                            <tbody id="expenses-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-light text-center"><button type="button" id="add-expense-row" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-plus"></i> إضافة مصاريف</button></div>
+                </div>
+            </div>
+            
+
+
+            <!-- Gifts Card -->
+            <div class="card form-card">
+                <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseGiftsTable">
+                    <span><i class="fa-solid fa-gift me-2"></i>الهدايا</span>
+                    <i class="fa-solid fa-chevron-up collapse-icon"></i>
+                </div>
+                <div id="collapseGiftsTable" class="collapse show">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover mb-0">
+                            <thead class="table-light"><tr>
+                                <th>المادة</th>
+                                <th style="width: 110px;">الكمية</th>
+                                <th style="min-width: 220px;">الملاحظات</th>
+                                <th style="min-width: 160px;">الحسم</th>
+                                <th style="width: 90px;">إجراء</th>
+                            </tr></thead>
+                            <tbody id="gifts-table-body"></tbody>
+                        </table>
+                    </div>
+                    <div class="card-footer bg-light text-center">
+                        <button type="button" id="add-gift-row" class="btn btn-sm btn-outline-primary">
+                            <i class="fa-solid fa-plus"></i> إضافة هدية
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Notes Card -->
+            <div class="card form-card">
+                 <div class="card-header collapsible-header collapsed" data-bs-toggle="collapse" data-bs-target="#collapseNotes">
+                    <span><i class="fa-solid fa-receipt me-2"></i>الملاحظات</span>
+                    <i class="fa-solid fa-chevron-up collapse-icon"></i>
+                </div>
+                <div id="collapseNotes" class="collapse">
+                    <div class="card-body"><label for="notes" class="form-label">ملاحظات إضافية</label><textarea id="notes" class="form-control" rows="4" placeholder="اكتب ملاحظاتك هنا..."></textarea></div>
+                </div>
+            </div>
+            
+            <div class="text-center my-4 d-flex justify-content-center gap-2">
+                <button type="submit" class="btn btn-primary main-submit-btn"><i class="fa-solid fa-paper-plane"></i> إرسال التقرير</button>
+                <button type="button" id="submitAndAddAnotherBtn" class="btn btn-success"><i class="fa-solid fa-plus-circle"></i> إرسال وإضافة آخر</button>
+            </div>
+        </form>
+    </div>
+
+    <!-- MODAL FOR SUCCESS MESSAGE -->
+    <div class="modal fade" id="successModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">تم بنجاح!</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <p class="fs-5">التقرير قيد الحفظ في الخلفية...</p>
+                    <div id="success-spinner" class="spinner-border spinner-border-sm text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <a href="#" id="viewReportBtn" class="btn btn-primary disabled">عرض التقرير في السجل</a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR PRODUCT SELECTION -->
+    <div class="modal fade" id="productSelectionModal" tabindex="-1" aria-labelledby="productSelectionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="productSelectionModalLabel">اختيار مواد المبيعات</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><input type="text" id="productSearchInput" class="form-control" placeholder="ابحث عن مادة..."></div>
+                    <div class="table-responsive"><table class="table table-hover" id="productSelectionTable"><thead><tr><th style="width: 50px;">اختيار</th><th>اسم المادة</th></tr></thead><tbody></tbody></table></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" class="btn btn-primary" id="addSelectedProductsBtn">إضافة المواد المحددة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR PROMOTERS AT POINT -->
+<div class="modal fade" id="promotersSelectionModal" tabindex="-1" aria-labelledby="promotersSelectionModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="promotersSelectionModalLabel">الأشخاص المتواجدين ضمن النقطة</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <input type="text" id="promotersSearchInput" class="form-control mb-3" placeholder="ابحث عن موظف...">
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle" id="promotersSelectionTable">
+                        <thead><tr><th style="width:70px;">اختيار</th><th>اسم الموظف</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="promotersEmptyMessage" class="text-center text-muted d-none">لا يوجد مروجون متاحون.</div>
+                <div class="alert alert-info py-2 mb-0 mt-3">يمكن اختيار جميع الأشخاص المتواجدين مباشرة، وسيتم حفظهم مع التقرير.</div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                <button type="button" class="btn btn-primary" id="savePromotersBtn"><i class="fa-solid fa-check me-1"></i> حفظ الأشخاص المحددين</button>
+            </div>
+        </div>
+    </div>
+</div>
+    </div>
+
+
+
+    <!-- MODAL FOR GIFT SELECTION -->
+    <div class="modal fade" id="giftSelectionModal" tabindex="-1" aria-labelledby="giftSelectionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="giftSelectionModalLabel">اختيار الهدايا</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><input type="text" id="giftSearchInput" class="form-control" placeholder="ابحث عن مادة..."></div>
+                    <div class="table-responsive"><table class="table table-hover" id="giftSelectionTable"><thead><tr><th style="width: 50px;">اختيار</th><th>اسم المادة</th></tr></thead><tbody></tbody></table></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" class="btn btn-primary" id="addSelectedGiftsBtn">إضافة المواد المحددة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL FOR EXPENSE SELECTION -->
+    <div class="modal fade" id="expenseSelectionModal" tabindex="-1" aria-labelledby="expenseSelectionModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="expenseSelectionModalLabel">اختيار مواد التذوق</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3"><input type="text" id="expenseSearchInput" class="form-control" placeholder="ابحث عن مادة تذوق..."></div>
+                    <div class="table-responsive"><table class="table table-hover" id="expenseSelectionTable"><thead><tr><th style="width: 50px;">اختيار</th><th>اسم المصروف</th></tr></thead><tbody></tbody></table></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
+                    <button type="button" class="btn btn-primary" id="addSelectedExpensesBtn">إضافة مواد التذوق المحددة</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="script.js"></script>
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.warn));
+        }
+    </script>
+
+    <!-- إضافة بيانات جديدة إلى Locations -->
+    <div class="modal fade" id="addLocationModal" tabindex="-1" aria-labelledby="addLocationModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addLocationModalLabel">إضافة بيانات جديدة</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <form id="addLocationForm">
+                    <div class="modal-body">
+                        <input type="hidden" id="addLocationType">
+                        <div id="addLocationContext" class="alert alert-info py-2"></div>
+                        <label for="addLocationValue" class="form-label">القيمة الجديدة</label>
+                        <input type="text" id="addLocationValue" class="form-control" required autocomplete="off">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إلغاء</button>
+                        <button type="submit" class="btn btn-success" id="saveLocationBtn"><i class="fa-solid fa-save me-1"></i>حفظ</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+</body>
+</html>

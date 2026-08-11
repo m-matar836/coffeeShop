@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>تسجيل الدخول - لوحة التحكم</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+    <link rel="stylesheet" href="style.css">
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#0d6efd">
+</head>
+<body class="login-body">
+    <div class="login-container">
+        <div class="login-form">
+            <div class="form-header">
+                <img src="https://cdn-icons-png.flaticon.com/512/295/295128.png" alt="شعار الدخول">
+                <h2>تسجيل الدخول</h2>
+                <p>أهلاً بك! يرجى إدخال بياناتك للمتابعة.</p>
+            </div>
+            
+        <form id="loginForm">
+            <div class="input-group">
+                <label for="username">اسم المستخدم</label>
+                <div class="input-field">
+                    <input type="text" id="username" placeholder="ادخل اسم المستخدم" required>
+                    <i class="fa-solid fa-user icon"></i>
+                </div>
+            </div>
+            <div class="input-group">
+                <label for="password">كلمة المرور</label>
+                <div class="input-field">
+                    <input type="password" id="password" placeholder="ادخل كلمة المرور" required>
+                    <i class="fa-solid fa-eye-slash icon toggle-password"></i>
+                </div>
+            </div>
+
+            <div class="remember-me-group">
+                <input type="checkbox" id="rememberMe" checked>
+                <label for="rememberMe">تذكرني</label>
+            </div>
+
+            <p id="errorMessage" class="error-message"></p>
+            <button type="submit" class="submit-btn">دخـــول</button>
+        </form>
+    </div>
+</div>
+<script src="script.js"></script>
+
+<script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => navigator.serviceWorker.register('./service-worker.js').catch(console.warn));
+        }
+    </script>
+</body>
+</html>
+<!--<img src="images/login-icon.png" alt="صورة المستخدم"  style="max-height: 200px;width: 60%;border-radius: 8px;">

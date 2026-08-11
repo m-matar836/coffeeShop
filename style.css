@@ -1,0 +1,331 @@
+/* =================================================================== */
+/*                      1. Global Styles & Variables                   */
+/* =================================================================== */
+@import url('https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap');
+
+:root {
+    --primary-color: #4a90e2;
+    --secondary-color: #50e3c2;
+    --background-color: #f7f9fc;
+    --form-background: #ffffff;
+    --text-color: #333;
+    --label-color: #555;
+    --error-color: #e74c3c;
+    --border-color: #dfe7f1;
+    --shadow: 0 10px 25px rgba(0, 0, 0, 0.08);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+body {
+    font-family: 'Cairo', sans-serif;
+    background-color: var(--background-color);
+    direction: rtl;
+    color: var(--text-color);
+}
+
+
+/* =================================================================== */
+/*                      2. Login Page Styles                           */
+/* =================================================================== */
+.login-body {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+}
+
+.login-container {
+    padding: 20px;
+    width: 100%;
+    max-width: 450px;
+}
+
+.login-form {
+    background-color: var(--form-background);
+    padding: 40px;
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    transition: all 0.3s ease;
+}
+
+.login-form:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.1);
+}
+
+.form-header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+.form-header img {
+    max-height: 80px;
+    width: auto;
+    margin-bottom: 20px;
+}
+
+.form-header h2 {
+    font-weight: 700;
+    margin-bottom: 5px;
+}
+
+.form-header p {
+    color: var(--label-color);
+    font-size: 0.95rem;
+}
+
+.input-group {
+    margin-bottom: 20px;
+}
+
+.input-group label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+}
+
+.input-field {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.input-field .icon {
+    position: absolute;
+    right: 15px;
+    color: #ccc;
+    font-size: 1.1rem;
+    transition: color 0.3s ease;
+}
+
+.input-field input {
+    width: 100%;
+    padding: 12px 45px 12px 15px;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    outline: none;
+    font-family: 'Cairo', sans-serif;
+    font-size: 1rem;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.input-field input:focus {
+    border-color: var(--primary-color);
+    box-shadow: 0 0 0 3px rgba(74, 144, 226, 0.2);
+}
+
+.input-field input:focus ~ .icon {
+    color: var(--primary-color);
+}
+
+.toggle-password {
+    left: 15px !important;
+    right: auto !important;
+    cursor: pointer;
+}
+
+.remember-me-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 15px;
+    font-size: 0.9rem;
+    color: var(--label-color);
+}
+.remember-me-group label {
+    margin-bottom: 0;
+    cursor: pointer;
+}
+.remember-me-group input[type="checkbox"] {
+    width: 15px;
+    height: 15px;
+    accent-color: var(--primary-color);
+}
+
+.error-message {
+    color: var(--error-color);
+    font-size: 0.85rem;
+    text-align: center;
+    height: 20px;
+    margin-bottom: 15px;
+}
+
+.submit-btn {
+    width: 100%;
+    padding: 14px;
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    border: none;
+    border-radius: 8px;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    box-shadow: 0 5px 15px rgba(74, 144, 226, 0.3);
+}
+
+.submit-btn:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 20px rgba(74, 144, 226, 0.4);
+}
+
+
+/* =================================================================== */
+/*                      3. Navbar & Main Content Styles                */
+/* =================================================================== */
+.navbar {
+    border-bottom: 1px solid var(--border-color);
+}
+
+.navbar-brand {
+    font-weight: 700;
+    color: var(--text-color);
+}
+
+.navbar-brand i {
+    color: var(--primary-color);
+    margin-left: 8px;
+}
+
+.navbar-nav .nav-link {
+    font-weight: 600;
+    transition: color 0.2s ease-in-out;
+    padding: 0.5rem 1rem;
+}
+
+.navbar-nav .nav-link.active,
+.navbar-nav .nav-link:hover {
+    color: var(--primary-color) !important;
+}
+
+.navbar-nav .nav-link.active {
+    font-weight: 700;
+}
+
+.navbar-text {
+    color: var(--label-color);
+}
+
+
+.main-container {
+    width: 100%;
+    max-width: 1200px;
+    margin: 20px auto;
+    padding: 0 15px;
+}
+
+.form-card, .history-card {
+    background-color: var(--form-background);
+    border-radius: 12px;
+    box-shadow: var(--shadow);
+    margin-bottom: 25px;
+    border: none;
+}
+
+.card-header {
+    border-bottom: none !important;
+}
+
+.form-card .card-header {
+    background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+    color: white;
+    padding: 15px 20px;
+    font-weight: 600;
+}
+
+.collapsible-header {
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.collapse-icon {
+    transition: transform 0.3s ease;
+}
+
+.collapsible-header.collapsed .collapse-icon {
+    transform: rotate(-180deg);
+}
+
+.search-bar {
+    position: relative;
+    max-width: 400px;
+    width: 100%;
+}
+.search-bar .fa-search {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    right: 15px;
+    color: #aaa;
+}
+.search-bar input {
+    padding-right: 40px;
+}
+
+.accordion-button:not(.collapsed) {
+    background-color: rgba(74, 144, 226, 0.05);
+}
+
+.accordion-button:focus {
+    box-shadow: 0 0 0 0.25rem rgba(74, 144, 226, 0.2);
+}
+
+/* =================================================================== */
+/*                      4. Modal & Toast Styles                        */
+/* =================================================================== */
+.modal-body .table-responsive {
+    max-height: 400px;
+}
+
+.modal-header .btn-close {
+    margin-left: 0;
+    margin-right: -0.5rem;
+}
+
+#productSelectionTable tbody tr,
+#expenseSelectionTable tbody tr {
+    cursor: pointer;
+}
+
+#productSelectionTable tbody tr:hover,
+#expenseSelectionTable tbody tr:hover {
+    background-color: #f0f8ff;
+}
+
+/* [إضافة جديدة] أنماط رسالة التنبيه المؤقتة */
+.toast-container {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1100; /* To appear above everything */
+    visibility: hidden;
+    opacity: 0;
+    transition: visibility 0s 0.5s, opacity 0.5s ease-in-out;
+}
+
+.toast-container.show {
+    visibility: visible;
+    opacity: 1;
+    transition: opacity 0.5s ease-in-out;
+}
+
+.toast-message {
+    background-color: rgba(40, 40, 40, 0.9);
+    color: white;
+    padding: 10px 20px;
+    border-radius: 20px;
+    font-size: 0.9rem;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.toast-message.error {
+    background-color: rgba(231, 76, 60, 0.9); /* --error-color */
+}

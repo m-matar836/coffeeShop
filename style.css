@@ -329,3 +329,7 @@ body {
 .toast-message.error {
     background-color: rgba(231, 76, 60, 0.9); /* --error-color */
 }
+
+/* Location add buttons: keep + button beside each select */
+#governorate + button, #region + button, #market_name + button { flex: 0 0 auto; }
+#governorate, #region, #market_name { min-width: 0; }

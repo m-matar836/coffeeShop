@@ -11,6 +11,10 @@
     <link rel="stylesheet" href="style.css">
     <link rel="manifest" href="manifest.json">
     <meta name="theme-color" content="#0d6efd">
+
+<style id="location-buttons-v16-final">
+.location-add-wrap{display:flex;align-items:stretch;gap:6px;width:100%}.location-add-wrap select{flex:1;min-width:0}.location-add-wrap button{flex:0 0 auto;white-space:nowrap}
+</style>
 </head>
 <body>
 
@@ -57,15 +61,15 @@
             <!-- Report Info Card -->
             <div class="card form-card">
                 <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseReportInfo">
-                    <span><i class="fa-solid fa-file-invoice me-2"></i>معلومات التقرير الأساسية</span>
+                    <span><i class="fa-solid fa-file-invoice me-2"></i>  معلومات التقرير الأساسية  </span>
                     <i class="fa-solid fa-chevron-up collapse-icon"></i>
                 </div>
                 <div id="collapseReportInfo" class="collapse show">
                     <div class="card-body">
                         <div class="row g-3">
-                            <div class="col-md-4"><label class="form-label">المحافظة</label><div class="input-group"><select id="governorate" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="governorate" title="إضافة محافظة"><i class="fa-solid fa-plus"></i></button></div></div>
-                            <div class="col-md-4"><label class="form-label">المنطقة</label><div class="input-group"><select id="region" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="region" title="إضافة منطقة"><i class="fa-solid fa-plus"></i></button></div></div>
-                            <div class="col-md-4"><label class="form-label">اسم المحل</label><div class="input-group"><select id="market_name" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="market" title="إضافة اسم محل"><i class="fa-solid fa-plus"></i></button></div></div>
+                            <div class="col-md-4"><label class="form-label">المحافظة</label><div class="input-group flex-nowrap"><select id="governorate" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="governorate" title="إضافة محافظة"><i class="fa-solid fa-plus"></i></button></div></div>
+                            <div class="col-md-4"><label class="form-label">المنطقة</label><div class="input-group flex-nowrap"><select id="region" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="region" title="إضافة منطقة"><i class="fa-solid fa-plus"></i></button></div></div>
+                            <div class="col-md-4"><label class="form-label">اسم الفرع</label><div class="input-group flex-nowrap"><select id="market_name" class="form-select" required><option value="" selected disabled>اختر...</option></select><button type="button" class="btn btn-outline-success" data-add-location="market" title="إضافة اسم محل"><i class="fa-solid fa-plus"></i></button></div></div>
                             <div class="col-md-4"><label class="form-label">التاريخ</label><input type="date" id="date" class="form-control" required/></div>
                             <div class="col-md-4"><label class="form-label">من الساعة</label><input type="time" id="timeFrom" class="form-control" required/></div>
                             <div class="col-md-4"><label class="form-label">إلى الساعة</label><input type="time" id="timeTo" class="form-control" required/></div>
@@ -93,55 +97,69 @@
 </div>
                     </div>
                 </div>
-            </div><br/>
+            </div>
 
             <!-- Sales Card -->
             <div class="card form-card">
                 <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseSalesTable">
-                    <span><i class="fa-solid fa-cash-register me-2"></i>جدول المبيعات</span>
+                    <span><i class="fa-solid fa-cash-register me-2"></i>  المبيعات  </span>
                     <i class="fa-solid fa-chevron-up collapse-icon"></i>
                 </div>
                 <div id="collapseSalesTable" class="collapse show">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover mb-0">
-                            <thead class="table-light"><tr><th>المادة</th><th style="width: 130px;">السعر</th><th style="width: 130px;">الكمية</th><th style="width: 150px;">المجموع</th><th style="width: 90px;">إجراء</th></tr></thead>
+                            <thead class="table-light"><tr>
+                                <th>المادة</th>
+                                <th style="width: 130px;">السعر</th>
+                                <th style="width: 110px;">الكمية</th>
+                                <th style="width: 110px;">الحسم %</th>
+                                <th style="width: 150px;">المجموع بعد الحسم</th>
+                                <th style="min-width: 220px;">الملاحظات</th>
+                                <th style="width: 90px;">إجراء</th>
+                            </tr></thead>
                             <tbody id="sales-table-body"></tbody>
-                            <tfoot class="table-light fw-bold"><tr><td class="text-end" colspan="2">الإجمالي:</td><td id="totalQuantity">0</td><td id="grandTotal">0.00</td><td></td></tr></tfoot>
+                            <tfoot class="table-light fw-bold"><tr>
+                                <td class="text-end" colspan="2">الإجمالي:</td>
+                                <td id="totalQuantity">0</td>
+                                <td colspan="2"></td>
+                                <td id="grandTotal">0.0</td>
+                                <td></td>
+                            </tr></tfoot>
                         </table>
                     </div>
                     <div class="card-footer bg-light text-center"><button type="button" id="add-sale-row" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-plus"></i> إضافة مواد للبيع</button></div>
                 </div>
             </div>
 
-            <!-- Expenses Card -->
-            <div class="card form-card">
-                <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseExpensesTable">
-                    <span><i class="fa-solid fa-file-alt me-2"></i>جدول المصاريف</span>
+            <!-- Waste Card -->
+            <!-- <div class="card form-card">
+                <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseWasteTable">
+                    <span><i class="fa-solid fa-trash-can me-2"></i> الهدر</span>
                     <i class="fa-solid fa-chevron-up collapse-icon"></i>
                 </div>
-                <div id="collapseExpensesTable" class="collapse show">
+                <div id="collapseWasteTable" class="collapse show">
                     <div class="table-responsive">
                         <table class="table table-bordered table-hover mb-0">
                             <thead class="table-light"><tr>
                                 <th>المادة</th>
-                                <th style="width: 110px;">الكمية</th>
-                                <th style="min-width: 220px;">الملاحظات</th>
-                                <th style="min-width: 160px;">الحسم</th>
+                                <th style="width: 130px;">الكمية</th>
                                 <th style="width: 90px;">إجراء</th>
                             </tr></thead>
-                            <tbody id="expenses-table-body"></tbody>
+                            <tbody id="waste-table-body"></tbody>
                         </table>
                     </div>
-                    <div class="card-footer bg-light text-center"><button type="button" id="add-expense-row" class="btn btn-sm btn-outline-primary"><i class="fa-solid fa-plus"></i> إضافة مصاريف</button></div>
+                    <div class="card-footer bg-light text-center">
+                        <button type="button" id="add-waste-row" class="btn btn-sm btn-outline-primary">
+                            <i class="fa-solid fa-plus"></i> إضافة مادة هدر
+                        </button>
+                    </div>
                 </div>
-            </div>
-            
-
+            </div> -->
 
             <!-- Gifts Card -->
             <div class="card form-card">
                 <div class="card-header collapsible-header" data-bs-toggle="collapse" data-bs-target="#collapseGiftsTable">
-                    <span><i class="fa-solid fa-gift me-2"></i>الهدايا</span>
+                    <span><i class="fa-solid fa-gift me-2"></i> الهدايا والهدر</span>
                     <i class="fa-solid fa-chevron-up collapse-icon"></i>
                 </div>
                 <div id="collapseGiftsTable" class="collapse show">
@@ -149,9 +167,8 @@
                         <table class="table table-bordered table-hover mb-0">
                             <thead class="table-light"><tr>
                                 <th>المادة</th>
-                                <th style="width: 110px;">الكمية</th>
+                                <th style="width: 130px;">الكمية</th>
                                 <th style="min-width: 220px;">الملاحظات</th>
-                                <th style="min-width: 160px;">الحسم</th>
                                 <th style="width: 90px;">إجراء</th>
                             </tr></thead>
                             <tbody id="gifts-table-body"></tbody>
@@ -168,7 +185,7 @@
             <!-- Notes Card -->
             <div class="card form-card">
                  <div class="card-header collapsible-header collapsed" data-bs-toggle="collapse" data-bs-target="#collapseNotes">
-                    <span><i class="fa-solid fa-receipt me-2"></i>الملاحظات</span>
+                    <span><i class="fa-solid fa-receipt me-2"></i>  ملاحظات  </span>
                     <i class="fa-solid fa-chevron-up collapse-icon"></i>
                 </div>
                 <div id="collapseNotes" class="collapse">
@@ -275,25 +292,6 @@
         </div>
     </div>
 
-    <!-- MODAL FOR EXPENSE SELECTION -->
-    <div class="modal fade" id="expenseSelectionModal" tabindex="-1" aria-labelledby="expenseSelectionModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg modal-dialog-centered">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title" id="expenseSelectionModalLabel">اختيار مواد التذوق</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3"><input type="text" id="expenseSearchInput" class="form-control" placeholder="ابحث عن مادة تذوق..."></div>
-                    <div class="table-responsive"><table class="table table-hover" id="expenseSelectionTable"><thead><tr><th style="width: 50px;">اختيار</th><th>اسم المصروف</th></tr></thead><tbody></tbody></table></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">إغلاق</button>
-                    <button type="button" class="btn btn-primary" id="addSelectedExpensesBtn">إضافة مواد التذوق المحددة</button>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.2.3/dist/js/bootstrap.bundle.min.js"></script>

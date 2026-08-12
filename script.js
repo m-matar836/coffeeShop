@@ -1,8 +1,22 @@
+
+// V16: numeric sales discount entered by the user (percentage 0-100).
+function normalizeSalesDiscount(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  return Math.min(n, 100);
+}
+function calculateSalesTotal(price, quantity, discount) {
+  const p = Number(price) || 0;
+  const q = Number(quantity) || 0;
+  const d = normalizeSalesDiscount(discount);
+  return Math.max((p * q) * (1 - d / 100));
+}
+
 // ===================================================================
 //   script.js - النسخة النهائية مع إصلاح مشكلة تفريغ الحقول
 // ===================================================================
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwh2pw9ek6X0bgI3vj0R9OiRewiItPt2-G5BV2DEnNP3W01eWFw8s6Zb57nap9t_Y6d/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJY147e7qY07ic8PhpJPvJZ487GNVwBqANd-K2UU6cflyuryINb7ZRbFoMeCV2VhDS/exec";
 const CACHE_DURATION_MINUTES = 1440;
 const FORM_STATE_KEY = 'reportFormLastState'; 
 const EDIT_STATE_KEY = 'reportToEdit';
@@ -195,7 +209,7 @@ async function getDbData() {
 // ===================================================================
 //                 CACHE REFRESH / FAST DATA UPDATE
 // ===================================================================
-const APP_DB_VERSION = 'v12-new-report-structure';
+const APP_DB_VERSION = 'v16-location-buttons-final';
 const APP_DB_KEY = `appDB_${APP_DB_VERSION}`;
 const APP_DB_TS_KEY = `dbCacheTimestamp_${APP_DB_VERSION}`;
 
@@ -325,6 +339,7 @@ function setupCacheRefreshButtons() {
 }
 
 
+// LOCATION BUTTONS V16 FINAL\n
 // ===================================================================
 //                 إضافة بيانات جديدة إلى Locations
 // ===================================================================
@@ -358,82 +373,83 @@ async function addLocationToSheet(type, value, governorate = '', region = '') {
 }
 
 function setupLocationAddButtons(DBRef) {
-    const modalEl = document.getElementById('addLocationModal');
-    const form = document.getElementById('addLocationForm');
-    if (!modalEl || !form) return;
-    const modal = new bootstrap.Modal(modalEl);
-    const typeInput = document.getElementById('addLocationType');
-    const valueInput = document.getElementById('addLocationValue');
-    const contextHint = document.getElementById('addLocationContext');
-    const saveBtn = document.getElementById('saveLocationBtn');
-    const governorateSelect = document.getElementById('governorate');
-    const regionSelect = document.getElementById('region');
-    const marketSelect = document.getElementById('market_name');
-
     const labels = { governorate: 'المحافظة', region: 'المنطقة', market: 'اسم المحل' };
+    const get = id => document.getElementById(id);
+    const govSelect = get('governorate');
+    const regionSelect = get('region');
+    const marketSelect = get('market_name');
 
     document.querySelectorAll('[data-add-location]').forEach(btn => {
         if (btn.dataset.locationAddBound === '1') return;
         btn.dataset.locationAddBound = '1';
-        btn.addEventListener('click', () => {
-            const type = btn.dataset.addLocation;
-            const gov = governorateSelect?.value || '';
+        btn.addEventListener('click', async (ev) => {
+            ev.preventDefault();
+            const type = btn.getAttribute('data-add-location');
+            const gov = govSelect?.value || '';
             const region = regionSelect?.value || '';
-            if (type === 'region' && !gov) {
-                alert('اختر المحافظة أولاً ثم أضف المنطقة.');
+
+            if (type === 'region' && !gov) { alert('اختر المحافظة أولاً ثم أضف المنطقة.'); return; }
+            if (type === 'market' && (!gov || !region)) { alert('اختر المحافظة والمنطقة أولاً ثم أضف اسم المحل.'); return; }
+
+            const modalEl = get('addLocationModal');
+            const form = get('addLocationForm');
+            const typeInput = get('addLocationType');
+            const valueInput = get('addLocationValue');
+            const context = get('addLocationContext');
+            const saveBtn = get('saveLocationBtn');
+
+            // Use Bootstrap modal when available; otherwise prompt as a safe fallback.
+            if (modalEl && form && typeInput && valueInput && window.bootstrap?.Modal) {
+                typeInput.value = type;
+                valueInput.value = '';
+                valueInput.placeholder = `أدخل ${labels[type] || 'البيانات'} الجديدة`;
+                if (context) context.textContent = type === 'governorate'
+                    ? 'ستتم إضافة محافظة جديدة.'
+                    : type === 'region' ? `المحافظة: ${gov}` : `المحافظة: ${gov} — المنطقة: ${region}`;
+                bootstrap.Modal.getOrCreateInstance(modalEl).show();
+                setTimeout(() => valueInput.focus(), 250);
                 return;
             }
-            if (type === 'market' && (!gov || !region)) {
-                alert('اختر المحافظة والمنطقة أولاً ثم أضف اسم المحل.');
-                return;
-            }
-            typeInput.value = type;
-            valueInput.value = '';
-            valueInput.placeholder = `أدخل ${labels[type] || 'البيانات'} الجديدة`;
-            contextHint.textContent = type === 'governorate'
-                ? 'ستتم إضافة محافظة جديدة.'
-                : type === 'region'
-                    ? `المحافظة: ${gov}`
-                    : `المحافظة: ${gov} — المنطقة: ${region}`;
-            modal.show();
-            setTimeout(() => valueInput.focus(), 200);
+
+            const value = prompt(`أدخل ${labels[type] || 'البيانات'} الجديدة`);
+            if (value === null || !String(value).trim()) return;
+            try {
+                await addLocationToSheet(type, value, gov, region);
+                await refreshAppCache({silent:true});
+                const select = type === 'governorate' ? govSelect : type === 'region' ? regionSelect : marketSelect;
+                if (select) { select.value = String(value).trim(); select.dispatchEvent(new Event('change', {bubbles:true})); }
+                showToast('تمت إضافة البيانات بنجاح', 'success');
+            } catch (error) { alert(`تعذر إضافة البيانات: ${error.message || error}`); }
         });
     });
 
-    form.addEventListener('submit', async e => {
-        e.preventDefault();
-        const type = typeInput.value;
-        const value = valueInput.value.trim();
-        const gov = governorateSelect?.value || '';
-        const region = regionSelect?.value || '';
-        saveBtn.disabled = true;
-        saveBtn.innerHTML = '<i class="fa-solid fa-spinner fa-spin me-1"></i>جاري الحفظ...';
-        try {
-            await addLocationToSheet(type, value, gov, region);
-            modal.hide();
-            if (typeof window.showToast === 'function') {
-                window.showToast('تمت إضافة البيانات بنجاح. جاري تحديث القوائم...');
-            } else {
-                console.log('تمت إضافة البيانات بنجاح. جاري تحديث القوائم...');
-            }
-            const result = await refreshAppCache({ silent: true });
-            if (!result.ok) throw result.error || new Error('تمت الإضافة لكن تعذر تحديث القوائم');
-
-            // Select the newly-added value immediately after refresh.
-            if (type === 'governorate') {
-                $('#governorate').val(value).trigger('change');
-            } else if (type === 'region') {
-                $('#region').val(value).trigger('change');
-            } else if (type === 'market') {
-                $('#market_name').val(value).trigger('change');
-            }
-        } catch (error) {
-            alert(`تعذر إضافة البيانات: ${error.message || error}`);
-        } finally {
-            saveBtn.disabled = false;
-            saveBtn.innerHTML = '<i class="fa-solid fa-save me-1"></i>حفظ';
-        }
-    });
+    const form = get('addLocationForm');
+    if (form && form.dataset.locationFormBound !== '1') {
+        form.dataset.locationFormBound = '1';
+        form.addEventListener('submit', async e => {
+            e.preventDefault();
+            const type = get('addLocationType')?.value || '';
+            const value = get('addLocationValue')?.value.trim() || '';
+            const gov = govSelect?.value || '';
+            const region = regionSelect?.value || '';
+            const saveBtn = get('saveLocationBtn');
+            if (!value) { alert('الاسم مطلوب'); return; }
+            if (type === 'region' && !gov) { alert('اختر المحافظة أولاً'); return; }
+            if (type === 'market' && (!gov || !region)) { alert('اختر المحافظة والمنطقة أولاً'); return; }
+            if (saveBtn) { saveBtn.disabled = true; saveBtn.dataset.oldHtml = saveBtn.innerHTML; saveBtn.textContent = 'جاري الحفظ...'; }
+            try {
+                await addLocationToSheet(type, value, gov, region);
+                const result = await refreshAppCache({silent:true});
+                if (!result.ok) throw (result.error || new Error('تمت الإضافة لكن تعذر تحديث القوائم'));
+                const modalEl = get('addLocationModal');
+                if (modalEl && window.bootstrap?.Modal) bootstrap.Modal.getOrCreateInstance(modalEl).hide();
+                const select = type === 'governorate' ? govSelect : type === 'region' ? regionSelect : marketSelect;
+                if (select) { select.value = value; select.dispatchEvent(new Event('change', {bubbles:true})); }
+                showToast('تمت إضافة البيانات بنجاح', 'success');
+            } catch (error) { alert(`تعذر إضافة البيانات: ${error.message || error}`); }
+            finally { if (saveBtn) { saveBtn.disabled=false; saveBtn.innerHTML=saveBtn.dataset.oldHtml || 'حفظ'; } }
+        });
+    }
 }
 
 // ===================================================================
@@ -510,11 +526,9 @@ async function handleReportPage() {
     const marketSelect = document.getElementById('market_name');
     const supervisorSelect = document.getElementById('supervisor');
     const salesTableBody = document.getElementById('sales-table-body');
-    const expensesTableBody = document.getElementById('expenses-table-body');
-    const giftsTableBody = document.getElementById('gifts-table-body');
+        const giftsTableBody = document.getElementById('gifts-table-body');
     const addSaleRowBtn = document.getElementById('add-sale-row');
-    const addExpenseRowBtn = document.getElementById('add-expense-row');
-    const addGiftRowBtn = document.getElementById('add-gift-row');
+        const addGiftRowBtn = document.getElementById('add-gift-row');
     const mainSubmitBtn = document.querySelector('.main-submit-btn');
     const submitAndAddAnotherBtn = document.getElementById('submitAndAddAnotherBtn');
 
@@ -522,12 +536,6 @@ async function handleReportPage() {
     const productSearchInput = document.getElementById('productSearchInput');
     const productSelectionTbody = document.querySelector('#productSelectionTable tbody');
     const addSelectedProductsBtn = document.getElementById('addSelectedProductsBtn');
-
-    const expenseModal = new bootstrap.Modal(document.getElementById('expenseSelectionModal'));
-    const expenseSearchInput = document.getElementById('expenseSearchInput');
-    const expenseSelectionTbody = document.querySelector('#expenseSelectionTable tbody');
-    const addSelectedExpensesBtn = document.getElementById('addSelectedExpensesBtn');
-
     const giftModal = new bootstrap.Modal(document.getElementById('giftSelectionModal'));
     const giftSearchInput = document.getElementById('giftSearchInput');
     const giftSelectionTbody = document.querySelector('#giftSelectionTable tbody');
@@ -670,27 +678,18 @@ async function handleReportPage() {
         timeTo: document.getElementById('timeTo').value,
         supervisor: $(supervisorSelect).val(),
         promoters: getSelectedPromoters(),
-        promoter1: document.getElementById('promoter1').value,
-        promoter2: document.getElementById('promoter2').value,
-        promoter3: document.getElementById('promoter3').value,
-        promoter4: document.getElementById('promoter4').value,
         notes: document.getElementById('notes').value,
         sales: [...salesTableBody.querySelectorAll('tr')].map(r => ({
             product: $(r.querySelector('.sale-product')).val(),
             price: Number(r.querySelector('.sale-price').value) || 0,
-            quantity: Number(r.querySelector('.sale-quantity').value) || 0
-        })),
-        expenses: [...expensesTableBody.querySelectorAll('tr')].map(r => ({
-            item: $(r.querySelector('.expense-item')).val(),
-            quantity: Number(r.querySelector('.expense-quantity').value) || 0,
-            notes: r.querySelector('.expense-notes')?.value || '',
-            discount: r.querySelector('.expense-discount')?.value || ''
+            quantity: Number(r.querySelector('.sale-quantity').value) || 0,
+            discount: Number(r.querySelector('.sale-discount').value) || 0,
+            notes: r.querySelector('.sale-notes')?.value || ''
         })),
         gifts: [...giftsTableBody.querySelectorAll('tr')].map(r => ({
             item: $(r.querySelector('.gift-item')).val(),
             quantity: Number(r.querySelector('.gift-quantity').value) || 0,
-            notes: r.querySelector('.gift-notes')?.value || '',
-            discount: r.querySelector('.gift-discount')?.value || ''
+            notes: r.querySelector('.gift-notes')?.value || ''
         }))
     });
 
@@ -716,8 +715,6 @@ async function handleReportPage() {
             document.getElementById('notes').value = state.notes || '';
             salesTableBody.innerHTML = '';
             (state.sales || []).forEach(createSaleRow);
-            expensesTableBody.innerHTML = '';
-            (state.expenses || []).forEach(createExpenseRow);
             giftsTableBody.innerHTML = '';
             (state.gifts || []).forEach(createGiftRow);
             updateSaleTotals();
@@ -737,13 +734,14 @@ async function handleReportPage() {
         salesTableBody.querySelectorAll('tr').forEach(row => {
             const price = Number(row.querySelector('.sale-price')?.value) || 0;
             const quantity = Number(row.querySelector('.sale-quantity')?.value) || 0;
-            const rowTotal = price * quantity;
+            const discount = normalizeSalesDiscount(row.querySelector('.sale-discount')?.value);
+            const rowTotal = calculateSalesTotal(price, quantity, discount);
             const totalInput = row.querySelector('.row-total');
-            if (totalInput) totalInput.value = rowTotal.toFixed(2);
+            if (totalInput) totalInput.value = rowTotal.toFixed(1);
             total += rowTotal;
             qty += quantity;
         });
-        document.getElementById('grandTotal').textContent = total.toFixed(2);
+        document.getElementById('grandTotal').textContent = total.toFixed(1);
         document.getElementById('totalQuantity').textContent = qty;
     };
 
@@ -757,45 +755,42 @@ async function handleReportPage() {
         }).join('');
         row.innerHTML = `
             <td><select class="form-select form-select-sm sale-product" required><option value="" disabled selected>اختر...</option>${options}</select></td>
-            <td><input type="number" class="form-control form-control-sm sale-price" value="${Number(sale.price || 0).toFixed(2)}" min="0" step="0.01" required></td>
+            <td><input type="number" class="form-control form-control-sm sale-price" value="${Number(sale.price || 0).toFixed(1)}" min="0" step="1" required></td>
             <td><input type="number" class="form-control form-control-sm sale-quantity" value="${sale.quantity ?? ''}" min="1" required></td>
-            <td><input type="text" class="form-control form-control-sm row-total" value="0.00" readonly></td>
+            <td><input type="number" class="form-control form-control-sm sale-discount" value="${normalizeSalesDiscount(sale.discount)}" min="0" max="100" step="1" placeholder="0"></td>
+            <td><input type="text" class="form-control form-control-sm row-total" value="0.0" readonly></td>
+            <td><input type="text" class="form-control form-control-sm sale-notes" value="${escapeHtml(sale.notes || '')}" placeholder="ملاحظة..."></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger remove-row-btn"><i class="fa-solid fa-trash-can"></i></button></td>`;
         salesTableBody.appendChild(row);
         const select = $(row.querySelector('.sale-product'));
         initSelect2(select, 'اختر المادة...');
         select.on('change', function() {
             const price = $(this).find('option:selected').data('price');
-            if (price !== undefined && price !== '') row.querySelector('.sale-price').value = Number(price).toFixed(2);
+            if (price !== undefined && price !== '') {
+                row.querySelector('.sale-price').value = Number(price).toFixed(1);
+                scheduleDirectPriceUpdate($(this).val(), Number(price));
+            }
             updateSaleTotals();
-            isFormDirty = true; saveFormState();
+            isFormDirty = true; saveFormState();    
         });
-        row.querySelector('.sale-price').addEventListener('input', () => { updateSaleTotals(); isFormDirty = true; saveFormState(); });
+
+        row.querySelector('.sale-price').addEventListener('input', () => {
+            updateSaleTotals(); isFormDirty = true; saveFormState();
+            scheduleDirectPriceUpdate(select.val(), Number(row.querySelector('.sale-price').value) || 0);
+        });
         row.querySelector('.sale-quantity').addEventListener('input', () => { updateSaleTotals(); isFormDirty = true; saveFormState(); });
+        row.querySelector('.sale-discount').addEventListener('input', () => { updateSaleTotals(); isFormDirty = true; saveFormState(); });
+        row.querySelector('.sale-notes').addEventListener('input', () => { isFormDirty = true; saveFormState(); });
         row.querySelector('.remove-row-btn').addEventListener('click', () => { row.remove(); updateSaleTotals(); isFormDirty = true; saveFormState(); });
+
         if (sale.product) select.val(sale.product).trigger('change');
-        if (sale.price !== undefined) row.querySelector('.sale-price').value = Number(sale.price || 0).toFixed(2);
+        if (sale.price !== undefined) row.querySelector('.sale-price').value = Number(sale.price || 0).toFixed(1);
         if (sale.quantity !== undefined) row.querySelector('.sale-quantity').value = sale.quantity;
+        row.querySelector('.sale-discount').value = normalizeSalesDiscount(sale.discount);
+        row.querySelector('.sale-notes').value = sale.notes || '';
         updateSaleTotals();
     };
 
-    const createExpenseRow = (expense = {}) => {
-        const products = tastingProducts();
-        const row = document.createElement('tr');
-        const options = products.map(p => `<option value="${escapeHtml(p.name)}">${escapeHtml(p.name)}</option>`).join('');
-        row.innerHTML = `
-            <td><select class="form-select form-select-sm expense-item" required><option value="" disabled selected>اختر...</option>${options}</select></td>
-            <td><input type="number" class="form-control form-control-sm expense-quantity" value="${expense.quantity ?? ''}" min="1" required></td>
-            <td><input type="text" class="form-control form-control-sm expense-notes" value="${escapeHtml(expense.notes || '')}" placeholder="ملاحظة..."></td>
-            <td><input type="text" class="form-control form-control-sm expense-discount" value="${escapeHtml(expense.discount || '')}" placeholder="مثلاً 10% أو مجانا"></td>
-            <td><button type="button" class="btn btn-sm btn-outline-danger remove-row-btn"><i class="fa-solid fa-trash-can"></i></button></td>`;
-        expensesTableBody.appendChild(row);
-        const select = $(row.querySelector('.expense-item'));
-        initSelect2(select, 'اختر مادة التذوق...');
-        if (expense.item) select.val(expense.item).trigger('change');
-        row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => { isFormDirty = true; saveFormState(); }));
-        row.querySelector('.remove-row-btn').addEventListener('click', () => { row.remove(); isFormDirty = true; saveFormState(); });
-    };
 
     const createGiftRow = (gift = {}) => {
         const products = giftProducts();
@@ -805,7 +800,6 @@ async function handleReportPage() {
             <td><select class="form-select form-select-sm gift-item" required><option value="" disabled selected>اختر...</option>${options}</select></td>
             <td><input type="number" class="form-control form-control-sm gift-quantity" value="${gift.quantity ?? ''}" min="1" required></td>
             <td><input type="text" class="form-control form-control-sm gift-notes" value="${escapeHtml(gift.notes || '')}" placeholder="ملاحظة..."></td>
-            <td><input type="text" class="form-control form-control-sm gift-discount" value="${escapeHtml(gift.discount || '')}" placeholder="مثلاً 10% أو مجانا"></td>
             <td><button type="button" class="btn btn-sm btn-outline-danger remove-row-btn"><i class="fa-solid fa-trash-can"></i></button></td>`;
         giftsTableBody.appendChild(row);
         const select = $(row.querySelector('.gift-item'));
@@ -813,6 +807,37 @@ async function handleReportPage() {
         if (gift.item) select.val(gift.item).trigger('change');
         row.querySelectorAll('input').forEach(input => input.addEventListener('input', () => { isFormDirty = true; saveFormState(); }));
         row.querySelector('.remove-row-btn').addEventListener('click', () => { row.remove(); isFormDirty = true; saveFormState(); });
+    };
+
+    const directPriceTimers = new Map();
+
+    const scheduleDirectPriceUpdate = (productName, price) => {
+        const name = String(productName || '').trim();
+        const value = Number(price);
+        if (!name || !Number.isFinite(value) || value < 0) return;
+        clearTimeout(directPriceTimers.get(name));
+        directPriceTimers.set(name, setTimeout(async () => {
+            try {
+                if (!navigator.onLine) return;
+                const res = await fetch(SCRIPT_URL, {
+                    method: 'POST',
+                    headers: {'Content-Type':'text/plain;charset=utf-8'},
+                    body: JSON.stringify({
+                        action: 'updateProductPrice',
+                        payload: {
+                            product: name,
+                            price: value,
+                            campaign: $('#campaign').val() || ''
+                        }
+                    })
+                });
+                const result = await res.json();
+                if (result.status !== 'success') throw new Error(result.message || 'تعذر تحديث السعر');
+                await refreshAppCache({silent:true});
+            } catch (e) {
+                console.warn('Direct price update failed:', e);
+            }
+        }, 700));
     };
 
     const renderSelection = (tbody, searchInput, products, className) => {
@@ -839,22 +864,18 @@ async function handleReportPage() {
     };
 
     const productRender = () => renderSelection(productSelectionTbody, productSearchInput, saleProducts(), 'product-select-check');
-    const expenseRender = () => renderSelection(expenseSelectionTbody, expenseSearchInput, tastingProducts(), 'expense-select-check');
     const giftRender = () => renderSelection(giftSelectionTbody, giftSearchInput, giftProducts(), 'gift-select-check');
 
     addSaleRowBtn.addEventListener('click', () => { productRender(); productModal.show(); });
-    addExpenseRowBtn.addEventListener('click', () => { expenseRender(); expenseModal.show(); });
     addGiftRowBtn.addEventListener('click', () => { giftRender(); giftModal.show(); });
 
     productSearchInput.addEventListener('input', productRender);
-    expenseSearchInput.addEventListener('input', expenseRender);
     giftSearchInput.addEventListener('input', giftRender);
 
     addSelectedProductsBtn.addEventListener('click', () => {
         productSelectionTbody.querySelectorAll('.product-select-check:checked').forEach(c => createSaleRow({product:c.value}));
         productModal.hide(); isFormDirty = true; saveFormState();
-    });
-    addSelectedExpensesBtn.addEventListener('click', () => {
+   
         expenseSelectionTbody.querySelectorAll('.expense-select-check:checked').forEach(c => createExpenseRow({item:c.value}));
         expenseModal.hide(); isFormDirty = true; saveFormState();
     });
@@ -867,7 +888,7 @@ async function handleReportPage() {
     populateSelect(governorateSelect, unique((DB.locations || []).map(l => l.gov)));
     initSelect2(governorateSelect, 'اختر المحافظة...');
     initSelect2(regionSelect, 'اختر المنطقة...');
-    initSelect2(marketSelect, 'اختر اسم المحل...', true);
+    initSelect2(marketSelect, 'اختر اسم الفرع...', true);
     initSelect2(supervisorSelect, 'اختر المشرف...');
     populateEmployees();
 
@@ -924,7 +945,6 @@ async function handleReportPage() {
         setSelectedPromoters([]);
         promotersSelectionTbody.querySelectorAll('.promoter-checkbox').forEach(cb => cb.checked = false);
         salesTableBody.innerHTML = '';
-        expensesTableBody.innerHTML = '';
         giftsTableBody.innerHTML = '';
         updateSaleTotals();
         reportForm.classList.remove('was-validated');
@@ -942,10 +962,8 @@ async function handleReportPage() {
         document.getElementById('timeTo').value = report.timeTo || '';
         document.getElementById('notes').value = report.notes || '';
         salesTableBody.innerHTML = '';
-        expensesTableBody.innerHTML = '';
         giftsTableBody.innerHTML = '';
         (report.sales || []).forEach(createSaleRow);
-        (report.expenses || []).forEach(createExpenseRow);
         (report.gifts || []).forEach(createGiftRow);
         updateSaleTotals();
         mainSubmitBtn.innerHTML = '<i class="fa-solid fa-save"></i> تحديث التقرير';
@@ -1120,12 +1138,10 @@ async function handleHistoryPage() {
         reports.slice().reverse().forEach(report => {
             let total = 0, qty = 0;
             const salesRows = report.sales?.length ? report.sales.map(s => {
-                const p = Number(s.price)||0, q=Number(s.quantity)||0, t=p*q;
+                const p = Number(s.price)||0, q=Number(s.quantity)||0, d=normalizeSalesDiscount(s.discount), t=calculateSalesTotal(p,q,d);
                 total += t; qty += q;
-                return `<tr><td>${esc(s.product||'-')}</td><td>${p.toFixed(2)}</td><td>${q}</td><td>${t.toFixed(2)}</td></tr>`;
+                return `<tr><td>${esc(s.product||'-')}</td><td>${p.toFixed(1)}</td><td>${q}</td><td>${d}%</td><td>${esc(s.notes||'-')}</td><td>${t.toFixed(1)}</td></tr>`;
             }).join('') : '<tr><td colspan="4" class="text-center text-muted">لا توجد مبيعات</td></tr>';
-
-            const expensesRows = renderRows(report.expenses, 'expense');
             const giftsRows = renderRows(report.gifts, 'gift');
             const promoters = Array.isArray(report.promoters) && report.promoters.length ? report.promoters.join('، ') : 'لا يوجد';
 
@@ -1146,15 +1162,9 @@ async function handleHistoryPage() {
 
                         <h5 class="mt-4">المبيعات</h5>
                         <table class="table table-sm table-bordered">
-                            <thead><tr><th>المادة</th><th>السعر</th><th>الكمية</th><th>المجموع</th></tr></thead>
+                            <thead><tr><th>المادة</th><th>السعر</th><th>الكمية</th><th>الحسم %</th><th>الملاحظات</th><th>المجموع بعد الحسم</th></tr></thead>
                             <tbody>${salesRows}</tbody>
-                            ${report.sales?.length ? `<tfoot class="table-light fw-bold"><tr><td colspan="2">الإجمالي:</td><td>${qty}</td><td>${total.toFixed(2)}</td></tr></tfoot>`:''}
-                        </table>
-
-                        <h5 class="mt-4">المصاريف</h5>
-                        <table class="table table-sm table-bordered">
-                            <thead><tr><th>المادة</th><th>الكمية</th><th>الملاحظات</th><th>الحسم</th></tr></thead>
-                            <tbody>${expensesRows}</tbody>
+                            ${report.sales?.length ? `<tfoot class="table-light fw-bold"><tr><td colspan="2">الإجمالي:</td><td>${qty}</td><td>${total.toFixed(1)}</td></tr></tfoot>`:''}
                         </table>
 
                         <h5 class="mt-4">الهدايا</h5>

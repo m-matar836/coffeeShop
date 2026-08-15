@@ -16,7 +16,7 @@ function calculateSalesTotal(price, quantity, discount) {
 //   script.js - النسخة النهائية مع إصلاح مشكلة تفريغ الحقول
 // ===================================================================
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbzJY147e7qY07ic8PhpJPvJZ487GNVwBqANd-K2UU6cflyuryINb7ZRbFoMeCV2VhDS/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9Sjmu4YGKl6w77I-M0ft79V2UrSmo10o87rUo_QWz4zx8-9vDiEpl6v5vt-K_I18Q/exec";
 const CACHE_DURATION_MINUTES = 1440;
 const FORM_STATE_KEY = 'reportFormLastState'; 
 const EDIT_STATE_KEY = 'reportToEdit';
@@ -976,29 +976,37 @@ async function handleReportPage() {
     let originalCreatedAt = '';
 
     if (editId) {
+        // التعديل دائماً يقرأ التقرير مباشرة من Google Sheet عبر getReportById.
+        // لا نستخدم نسخة sessionStorage حتى لا نعيد تاريخ/وقت قديم أو فارغ.
         localStorage.removeItem(FORM_STATE_KEY);
-        const cachedEdit = JSON.parse(sessionStorage.getItem(EDIT_STATE_KEY) || 'null');
-        if (cachedEdit && String(cachedEdit.id) === String(editId)) {
-            initEditMode(cachedEdit);
-            sessionStorage.removeItem(EDIT_STATE_KEY);
-        } else {
-            mainSubmitBtn.disabled = true;
-            mainContainer.insertAdjacentHTML('afterbegin',
-                `<div class="alert alert-info text-center p-3" id="edit-loading"><i class="fa-solid fa-spinner fa-spin"></i> تحميل بيانات التقرير...</div>`
+        sessionStorage.removeItem(EDIT_STATE_KEY);
+
+        mainSubmitBtn.disabled = true;
+        mainContainer.insertAdjacentHTML('afterbegin',
+            `<div class="alert alert-info text-center p-3" id="edit-loading"><i class="fa-solid fa-spinner fa-spin"></i> تحميل بيانات التقرير من قاعدة البيانات...</div>`
+        );
+
+        try {
+            const res = await fetch(
+                `${SCRIPT_URL}?action=getReportById&id=${encodeURIComponent(editId)}&t=${Date.now()}`,
+                { cache: 'no-store' }
             );
-            try {
-                const res = await fetch(`${SCRIPT_URL}?action=getReportById&id=${encodeURIComponent(editId)}&t=${Date.now()}`, {cache:'no-store'});
-                const result = await res.json();
-                document.getElementById('edit-loading')?.remove();
-                if (result.status === 'success') {
-                    originalCreatedAt = result.report.createdAt || '';
-                    initEditMode(result.report);
-                    mainSubmitBtn.disabled = false;
-                } else throw new Error(result.message || 'Report not found');
-            } catch (error) {
-                document.getElementById('edit-loading')?.remove();
-                alert(`خطأ في تحميل بيانات التعديل: ${error.message}`);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+
+            const result = await res.json();
+            document.getElementById('edit-loading')?.remove();
+
+            if (result.status === 'success' && result.report) {
+                originalCreatedAt = result.report.createdAt || '';
+                initEditMode(result.report);
+                mainSubmitBtn.disabled = false;
+            } else {
+                throw new Error(result.message || 'Report not found');
             }
+        } catch (error) {
+            document.getElementById('edit-loading')?.remove();
+            mainSubmitBtn.disabled = false;
+            alert(`خطأ في تحميل بيانات التعديل: ${error.message}`);
         }
     } else {
         loadFormState();
@@ -1189,8 +1197,7 @@ async function handleHistoryPage() {
             btn.addEventListener('click', e => {
                 e.preventDefault();
                 const id = btn.dataset.reportId;
-                const report = currentReports.find(r => String(r.id) === String(id));
-                if (report) sessionStorage.setItem(EDIT_STATE_KEY, JSON.stringify(report));
+                sessionStorage.removeItem(EDIT_STATE_KEY);
                 window.location.href = btn.href;
             });
         });

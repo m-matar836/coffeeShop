@@ -16,7 +16,7 @@ function calculateSalesTotal(price, quantity, discount) {
 //   script.js - النسخة النهائية مع إصلاح مشكلة تفريغ الحقول
 // ===================================================================
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbz9Sjmu4YGKl6w77I-M0ft79V2UrSmo10o87rUo_QWz4zx8-9vDiEpl6v5vt-K_I18Q/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyv4sCxOcZLWvQllTDtXeMebOtinFBLlj6SLxNQkT9QP13Rn5KpB8re8P3w0BRgYRob/exec";
 const CACHE_DURATION_MINUTES = 1440;
 const FORM_STATE_KEY = 'reportFormLastState'; 
 const EDIT_STATE_KEY = 'reportToEdit';

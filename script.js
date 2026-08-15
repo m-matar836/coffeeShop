@@ -576,7 +576,7 @@ async function handleReportPage() {
     };
 
     const normalizeCategory = value => String(value ?? '').trim().replace(/\s+/g, ' ');
-    const saleProducts = () => allProducts().filter(p => normalizeCategory(p.category) === 'مادة بيعية');
+    const saleProducts = () => allProducts();
     const tastingProducts = () => allProducts().filter(p => normalizeCategory(p.category) === 'مادة تذوق');
     // الهدايا مستقلة عن الباركود والحملة. إذا أضيف تصنيف "هدايا" لاحقاً سيستخدمه النظام،
     // وإلا يعرض جميع المواد غير الملغاة حتى يمكن اختيار الهدية.

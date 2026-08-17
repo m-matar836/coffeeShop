@@ -16,7 +16,7 @@ function calculateSalesTotal(price, quantity, discount) {
 //   script.js - النسخة النهائية مع إصلاح مشكلة تفريغ الحقول
 // ===================================================================
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxudznIwC6VTslCs3mXm87dRxxVGbwJJqxNhdBjZcQavwmxLmAuAzTsFljbkKISJd1K/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDnEGjL3aiC5AmdyOwBNJCEnrXJTslMS_sGkhzEOUzU_6YSmpXmeWbYfJwv9jbPTym/exec";
 const CACHE_DURATION_MINUTES = 1440;
 const FORM_STATE_KEY = 'reportFormLastState'; 
 const EDIT_STATE_KEY = 'reportToEdit';
@@ -506,6 +506,7 @@ async function handleLoginPage() {
 //                      4. منطق صفحة إدخال التقارير
 // ===================================================================
 async function handleReportPage() {
+    const currentUser = JSON.parse(localStorage.getItem('currentUser')) || JSON.parse(sessionStorage.getItem('currentUser')) || {};
     let isFormDirty = false;
     const mainContainer = document.querySelector('.main-container');
     const form = document.getElementById('reportForm');
@@ -988,7 +989,7 @@ async function handleReportPage() {
 
         try {
             const res = await fetch(
-                `${SCRIPT_URL}?action=getReportById&id=${encodeURIComponent(editId)}&t=${Date.now()}`,
+                `${SCRIPT_URL}?action=getReportById&id=${encodeURIComponent(editId)}&userId=${encodeURIComponent(currentUser.id||'')}&userName=${encodeURIComponent(currentUser.name||currentUser.username||'')}&role=${encodeURIComponent(currentUser.role||'')}&t=${Date.now()}`,
                 { cache: 'no-store' }
             );
             if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -1018,6 +1019,8 @@ async function handleReportPage() {
             ...state,
             id: editId || Date.now(),
             createdAt: editId ? originalCreatedAt : new Date().toLocaleString('ar-EG'),
+            createdById: currentUser.id || '',
+            createdByName: currentUser.name || currentUser.username || '',
             supervisor: state.supervisor || '',
             promoters: getSelectedPromoters(),
             participants: unique([state.supervisor, ...getSelectedPromoters()])
@@ -1118,6 +1121,9 @@ async function handleHistoryPage() {
     const noResultsMessage = document.getElementById('no-results-message');
     const currentUser = JSON.parse(localStorage.getItem('currentUser')) || JSON.parse(sessionStorage.getItem('currentUser'));
     let currentReports = [];
+    const historyTitle = document.getElementById('historyTitle');
+    const reportCount = document.getElementById('reportCount');
+    if (historyTitle) historyTitle.textContent = currentUser.role === 'admin' ? 'سجل جميع التقارير' : 'سجل تقاريري';
 
     const esc = value => String(value ?? '').replace(/[&<>"']/g, c => ({
         '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'
@@ -1135,6 +1141,7 @@ async function handleHistoryPage() {
     };
 
     const renderReports = reports => {
+        if (reportCount) reportCount.textContent = Array.isArray(reports) ? reports.length : 0;
         reportsAccordion.innerHTML = '';
         if (!reports?.length) {
             noResultsMessage.textContent = searchInput.value ? 'لا توجد تقارير تطابق بحثك.' : 'لا توجد تقارير محفوظة لعرضها.';
@@ -1215,7 +1222,7 @@ async function handleHistoryPage() {
     if (cached) {
         try {
             const all = JSON.parse(cached);
-            currentReports = currentUser.role === 'admin' ? all : all.filter(r => r.participants?.includes(currentUser.name));
+            currentReports = currentUser.role === 'admin' ? all : all.filter(r => String(r.createdById||'') === String(currentUser.id||'') || String(r.createdByName||'') === String(currentUser.name||currentUser.username||''));
             renderReports(currentReports);
         } catch(e) {}
     } else {
@@ -1232,11 +1239,11 @@ async function handleHistoryPage() {
     });
 
     try {
-        const res = await fetch(`${SCRIPT_URL}?action=getReports&t=${Date.now()}`, {cache:'no-store'});
+        const res = await fetch(`${SCRIPT_URL}?action=getReports&userId=${encodeURIComponent(currentUser.id||'')}&userName=${encodeURIComponent(currentUser.name||currentUser.username||'')}&role=${encodeURIComponent(currentUser.role||'')}&t=${Date.now()}`, {cache:'no-store'});
         const allFresh = await res.json();
         if (!Array.isArray(allFresh)) throw new Error(allFresh.message || 'تعذر تحميل التقارير');
         localStorage.setItem('reportsCache', JSON.stringify(allFresh));
-        currentReports = currentUser.role === 'admin' ? allFresh : allFresh.filter(r => r.participants?.includes(currentUser.name));
+        currentReports = currentUser.role === 'admin' ? allFresh : allFresh.filter(r => String(r.createdById||'') === String(currentUser.id||'') || String(r.createdByName||'') === String(currentUser.name||currentUser.username||''));
         renderReports(currentReports);
     } catch (error) {
         if (!cached) reportsAccordion.innerHTML = `<div class="alert alert-danger">فشل تحميل سجل التقارير: ${esc(error.message)}</div>`;

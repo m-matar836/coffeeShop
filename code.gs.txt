@@ -1,0 +1,567 @@
+// ===============================================================
+// Code.gs - V16
+// الموقع الجديد: مبيعات + هدر + هدايا
+// بدون مصاريف وبدون Barcode
+// ===============================================================
+
+const aSheet = SpreadsheetApp.getActiveSpreadsheet();
+const reportsSheet = aSheet.getSheetByName("Reports");
+const salesSheet = aSheet.getSheetByName("sales");
+const promotersSheet = aSheet.getSheetByName("EmployeesInPoint");
+const usersSheet = aSheet.getSheetByName("Users");
+const cache = CacheService.getScriptCache();
+const CACHE_EXPIRATION_SECONDS = 3600;
+
+function doGet(e) {
+  try {
+    const action = e?.parameter?.action || "";
+    let response;
+    switch (action) {
+      case "getInitialData": response = getInitialData(e.parameter.forceRefresh === "1"); break;
+      case "getReports": response = getReports(e.parameter.userId, e.parameter.userName, e.parameter.role); break;
+      case "getReportById": response = getReportById(e.parameter.id, e.parameter.userId, e.parameter.userName, e.parameter.role); break;
+      default: response = {status:"error", message:"Invalid GET Action"};
+    }
+    return createJsonResponse(response);
+  } catch (err) {
+    return createJsonResponse({status:"error", message:err.message});
+  }
+}
+
+function doPost(e) {
+  try {
+    const request = JSON.parse(e?.postData?.contents || "{}");
+    let response;
+    switch (request.action) {
+      case "doLogin": response = doLogin(request.payload || {}); break;
+      case "submitReport": response = handleReportSubmission(request.payload || {}); break;
+      case "addLocation": response = addLocation(request.payload || {}); break;
+      case "refreshCache": response = refreshCache(); break;
+      case "updateProductPrice": response = updateProductPrice(request.payload || {}); break;
+      default: response = {status:"error", message:"Invalid POST Action: " + request.action};
+    }
+    return createJsonResponse(response);
+  } catch (err) {
+    return createJsonResponse({status:"error", message:err.message});
+  }
+}
+
+function createJsonResponse(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function doLogin(payload) {
+  if (!usersSheet || usersSheet.getLastRow() < 2) throw new Error("Users sheet is empty");
+  const usersData = usersSheet.getRange(2,1,usersSheet.getLastRow()-1,5).getValues();
+  const username = String(payload.username || "").toLowerCase();
+  const foundUser = usersData.find(r =>
+    String(r[1] || "").toLowerCase() === username &&
+    String(r[2] || "") === String(payload.password || "")
+  );
+  if (!foundUser) throw new Error("Invalid credentials");
+  return {status:"success", user:{id:foundUser[0], username:foundUser[1], role:foundUser[3], name:foundUser[4]}};
+}
+
+function normalizeHeaderName(value) {
+  return String(value ?? "").trim().replace(/\s+/g," ").toLowerCase();
+}
+
+function getColumnIndex(headers, names, fallback) {
+  const normalized = headers.map(normalizeHeaderName);
+  for (const name of names) {
+    const idx = normalized.indexOf(normalizeHeaderName(name));
+    if (idx !== -1) return idx;
+  }
+  return fallback;
+}
+
+function isCancelledValue(value) {
+  if (value === true) return true;
+  return ["true","1","yes","نعم"].includes(String(value ?? "").trim().toLowerCase());
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map(v => String(v ?? "").trim()).filter(Boolean))];
+}
+
+function getInitialData(forceRefresh) {
+  const key = "initialData";
+  if (!forceRefresh) {
+    const cached = cache.get(key);
+    if (cached) return JSON.parse(cached);
+  } else {
+    cache.remove(key);
+  }
+
+  const locationsSheet = aSheet.getSheetByName("Locations");
+  const productsSheet = aSheet.getSheetByName("Products");
+  const employeesSheet = aSheet.getSheetByName("Employees");
+
+  const locations = [];
+  if (locationsSheet && locationsSheet.getLastRow() > 1) {
+    locationsSheet.getRange(2,1,locationsSheet.getLastRow()-1,3).getValues()
+      .forEach(r => locations.push({gov:r[0], region:r[1], market:r[2]}));
+  }
+
+  const employees = [];
+  const supervisors = [];
+  if (employeesSheet && employeesSheet.getLastRow() > 1) {
+    employeesSheet.getRange(2,1,employeesSheet.getLastRow()-1,
+      Math.max(3, employeesSheet.getLastColumn())).getValues().forEach(r => {
+        employees.push({name:r[0], role:r[1], mgr:r[2] || ""});
+        if (r[2]) supervisors.push(r[2]);
+      });
+  }
+
+  const products = {};
+  if (productsSheet && productsSheet.getLastRow() > 1) {
+    const data = productsSheet.getDataRange().getValues();
+    const headers = data[0];
+    const campaignCol = getColumnIndex(headers,["campaign","الحملة"],0);
+    const productCol = getColumnIndex(headers,["product","المادة","اسم المادة"],1);
+    const priceCol = getColumnIndex(headers,["price","السعر"],2);
+    const companyCol = getColumnIndex(headers,["الشركة","company"],3);
+    const categoryCol = getColumnIndex(headers,["تصنيف المادة","category","التصنيف"],5);
+    const cancelledCol = getColumnIndex(headers,["إلغاء المادة","cancelled","canceled","الغاء المادة"],6);
+
+    data.slice(1).forEach(r => {
+      const campaign = String(r[campaignCol] ?? "").trim();
+      const name = String(r[productCol] ?? "").trim();
+      if (!campaign || !name || isCancelledValue(r[cancelledCol])) return;
+      if (!products[campaign]) products[campaign] = [];
+      products[campaign].push({
+        name:name,
+        price:Number(r[priceCol]) || 0,
+        company:String(r[companyCol] ?? "").trim(),
+        category:String(r[categoryCol] ?? "").trim(),
+        cancelled:false
+      });
+    });
+  }
+
+  const result = {locations, products, employees, supervisors:uniqueStrings(supervisors)};
+  try { cache.put(key, JSON.stringify(result), CACHE_EXPIRATION_SECONDS); } catch(e) {}
+  return result;
+}
+
+function ensureSheet(name, headers) {
+  let sheet = aSheet.getSheetByName(name);
+  if (!sheet) {
+    sheet = aSheet.insertSheet(name);
+    sheet.getRange(1,1,1,headers.length).setValues([headers]);
+  } else if (sheet.getLastRow() < 1) {
+    sheet.getRange(1,1,1,headers.length).setValues([headers]);
+  }
+  return sheet;
+}
+
+function clearRowsByReportId(sheet, reportId, columns) {
+  if (!sheet || sheet.getLastRow() < 2) return;
+  const values = sheet.getRange(1,1,sheet.getLastRow(),columns).getValues();
+  const headers = values.shift();
+  const keep = values.filter(r => String(r[0]) !== String(reportId));
+  sheet.clearContents();
+  sheet.getRange(1,1,1,headers.length).setValues([headers]);
+  if (keep.length) sheet.getRange(2,1,keep.length,keep[0].length).setValues(keep);
+}
+
+function clearReportDetails(reportId) {
+  // حذف مبيعات التقرير القديم
+  clearRowsByReportId(salesSheet, reportId, 6);
+
+  // حذف هدر/ضيافات التقرير القديم من نفس الـSheet المستخدم فعلياً
+  const wasteSheet = aSheet.getSheetByName("waste");
+  clearRowsByReportId(wasteSheet, reportId, 4);
+
+  // حذف الموظفين الموجودين في النقطة للتقرير القديم
+  clearRowsByReportId(promotersSheet, reportId, 3);
+}
+
+function addReportDetails(reportData) {
+  const id = String(reportData.id);
+
+  const sales = ensureSheet("sales",["reportId","product","price","quantity","discount","notes"]);
+  if (Array.isArray(reportData.sales) && reportData.sales.length) {
+    const rows = reportData.sales.filter(s => s && s.product).map(s => [
+      id, String(s.product), Number(s.price)||0, Number(s.quantity)||0,
+      Math.max(0,Math.min(100,Number(s.discount)||0)), String(s.notes||"")
+    ]);
+    if (rows.length) sales.getRange(sales.getLastRow()+1,1,rows.length,6).setValues(rows);
+  }
+
+
+
+  const gifts = ensureSheet("waste", ["reportId","item","quantity","notes"]);
+  if (Array.isArray(reportData.gifts) && reportData.gifts.length) {
+    const rows = reportData.gifts.filter(x => x && x.item).map(x => [
+      id, String(x.item), Number(x.quantity)||0, String(x.notes||"")
+    ]);
+    if (rows.length) gifts.getRange(gifts.getLastRow()+1,1,rows.length,4).setValues(rows);
+  }
+
+  if (Array.isArray(reportData.promoters) && reportData.promoters.length && promotersSheet) {
+    const rows = uniqueStrings(reportData.promoters).map(p => [id,p,reportData.date || ""]);
+    if (rows.length) promotersSheet.getRange(promotersSheet.getLastRow()+1,1,rows.length,3).setValues(rows);
+  }
+}
+
+function updateProductPrice(payload) {
+  const sheet = aSheet.getSheetByName("Products");
+  if (!sheet || sheet.getLastRow() < 2) throw new Error("Products sheet is empty");
+
+  const name = String(payload.product || "").trim();
+  const price = Number(payload.price);
+  const campaign = String(payload.campaign || "").trim();
+  if (!name) throw new Error("اسم المادة مطلوب");
+  if (!Number.isFinite(price) || price < 0) throw new Error("السعر غير صالح");
+
+  const range = sheet.getDataRange();
+  const values = range.getValues();
+  const headers = values[0];
+  const productCol = getColumnIndex(headers,["product","المادة","اسم المادة"],1);
+  const priceCol = getColumnIndex(headers,["price","السعر"],2);
+  const campaignCol = getColumnIndex(headers,["campaign","الحملة"],0);
+
+  let changed = false;
+  let matches = 0;
+  for (let r=1; r<values.length; r++) {
+    const rowName = String(values[r][productCol] ?? "").trim();
+    const rowCampaign = String(values[r][campaignCol] ?? "").trim();
+    if (rowName !== name) continue;
+    if (campaign && campaign !== "شاملة" && rowCampaign !== campaign) continue;
+    values[r][priceCol] = price;
+    changed = true;
+    matches++;
+  }
+  if (!matches) throw new Error("المادة غير موجودة في Products");
+  if (changed) range.setValues(values);
+  cache.remove("initialData");
+  cache.remove("allReports");
+  return {status:"success", updated:matches, price:price};
+}
+
+function ensureReportOwnerColumns() {
+  if (!reportsSheet) throw new Error("Reports sheet is missing");
+  let lastCol = reportsSheet.getLastColumn();
+  if (lastCol < 1) {
+    reportsSheet.getRange(1,1,1,2).setValues([["createdById","createdByName"]]);
+    return;
+  }
+
+  let headers = reportsSheet.getRange(1,1,1,lastCol).getValues()[0].map(String);
+  if (!headers.some(h => h.trim() === "createdById")) {
+    reportsSheet.getRange(1, ++lastCol).setValue("createdById");
+  }
+  headers = reportsSheet.getRange(1,1,1,lastCol).getValues()[0].map(String);
+  if (!headers.some(h => h.trim() === "createdByName")) {
+    reportsSheet.getRange(1, ++lastCol).setValue("createdByName");
+  }
+}
+
+function handleReportSubmission(reportData) {
+  if (!reportsSheet) throw new Error("Reports sheet is missing");
+  reportData = reportData || {};
+  const id = String(reportData.id || "").trim();
+  if (!id) throw new Error("Report ID is required");
+
+  // Ensure ownership columns exist. They are added automatically once.
+  ensureReportOwnerColumns();
+
+  let headers = reportsSheet.getRange(1,1,1,reportsSheet.getLastColumn()).getValues()[0];
+  const ids = reportsSheet.getLastRow() > 1
+    ? reportsSheet.getRange(2,1,reportsSheet.getLastRow()-1,1).getValues().flat().map(v => String(v))
+    : [];
+  const existing = ids.indexOf(id);
+
+  // On edit, NEVER replace the original owner with the person editing the report.
+  // This keeps each report attached to its creator.
+  let ownerId = String(reportData.createdById || "").trim();
+  let ownerName = String(reportData.createdByName || "").trim();
+
+  if (existing >= 0) {
+    const existingRow = reportsSheet.getRange(existing + 2, 1, 1, headers.length).getValues()[0];
+    const ownerIdCol = headers.findIndex(h => String(h).trim() === "createdById");
+    const ownerNameCol = headers.findIndex(h => String(h).trim() === "createdByName");
+    if (ownerIdCol >= 0 && existingRow[ownerIdCol]) ownerId = String(existingRow[ownerIdCol]);
+    if (ownerNameCol >= 0 && existingRow[ownerNameCol]) ownerName = String(existingRow[ownerNameCol]);
+  }
+
+  // New reports must have an owner. Older reports without owner remain legacy records.
+  const newRow = headers.map(h => {
+    const key = String(h).trim();
+    if (key === "createdById") return ownerId;
+    if (key === "createdByName") return ownerName;
+    const v = reportData[h];
+    return Array.isArray(v) ? JSON.stringify(v) : (v === undefined ? "" : v);
+  });
+
+  if (existing >= 0) reportsSheet.getRange(existing+2,1,1,newRow.length).setValues([newRow]);
+  else reportsSheet.appendRow(newRow);
+
+  clearReportDetails(id);
+  addReportDetails(reportData);
+  cache.remove("allReports");
+  cache.remove("initialData");
+  return {status:"success", reportId:id, createdById:ownerId, createdByName:ownerName};
+}
+
+function getReports(userId, userName, role) {
+  const cached = cache.get("allReports");
+  let resultFromCache = null;
+  if (cached) {
+    try { resultFromCache = JSON.parse(cached); } catch(e) {}
+  }
+  if (resultFromCache) {
+    const isAdminCached = String(role || "").toLowerCase() === "admin";
+    const uidCached = String(userId || "").trim();
+    const unameCached = String(userName || "").trim();
+    return isAdminCached ? resultFromCache : resultFromCache.filter(r =>
+      (uidCached && String(r.createdById || "").trim() === uidCached) ||
+      (unameCached && String(r.createdByName || "").trim() === unameCached)
+    );
+  }
+  if (!reportsSheet || reportsSheet.getLastRow() < 2) return [];
+
+  const reportsData = reportsSheet.getDataRange().getValues();
+  const headers = reportsData.shift();
+  const map = new Map();
+
+  reportsData.forEach(row => {
+    if (!row[0]) return;
+    const obj = {};
+    headers.forEach((h,i) => {
+      if (h === "participants" || h === "promoters") {
+        try { obj[h] = JSON.parse(row[i] || "[]"); } catch(e) { obj[h] = []; }
+      } else obj[h] = row[i];
+    });
+    obj.sales=[]; obj.gifts=[]; obj.promoters=obj.promoters || [];
+    map.set(String(obj.id),obj);
+  });
+
+  const sales = aSheet.getSheetByName("sales");
+  if (sales && sales.getLastRow() > 1) {
+    sales.getDataRange().getValues().slice(1).forEach(r => {
+      const report = map.get(String(r[0]));
+      if (report) report.sales.push({
+        product:r[1], price:r[2], quantity:r[3], discount:r[4], notes:r[5]
+      });
+    });
+  }
+
+
+  const gifts = aSheet.getSheetByName("waste");
+  if (gifts && gifts.getLastRow() > 1) {
+    gifts.getDataRange().getValues().slice(1).forEach(r => {
+      const report = map.get(String(r[0]));
+      if (report) report.gifts.push({item:r[1], quantity:r[2], notes:r[3]});
+    });
+  }
+
+  if (promotersSheet && promotersSheet.getLastRow() > 1) {
+    promotersSheet.getDataRange().getValues().slice(1).forEach(r => {
+      const report = map.get(String(r[0]));
+      if (report && r[1]) report.promoters.push(r[1]);
+    });
+  }
+
+  const result = [...map.values()];
+
+  // History is user-specific. Admin can see all reports.
+  const isAdmin = String(role || "").toLowerCase() === "admin";
+  const uid = String(userId || "").trim();
+  const uname = String(userName || "").trim();
+  const filtered = isAdmin ? result : result.filter(r => {
+    const rid = String(r.createdById || "").trim();
+    const rname = String(r.createdByName || "").trim();
+    return (uid && rid === uid) || (uname && rname === uname);
+  });
+
+  try {
+    // Keep the complete cache; filtering is applied per request.
+    cache.put("allReports",JSON.stringify(result),CACHE_EXPIRATION_SECONDS);
+  } catch(e) {}
+  return filtered;
+}
+
+function formatDateForInput(value, timezone) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, timezone, 'yyyy-MM-dd');
+  }
+  const text = String(value).trim();
+  if (!text) return '';
+  // Already in HTML date format.
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  // Common ISO datetime string.
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (iso) return `${iso[1]}-${iso[2]}-${iso[3]}`;
+  // Common dd/mm/yyyy or dd-mm-yyyy formats.
+  const dmy = text.match(/^(\d{1,2})[\/-](\d{1,2})[\/-](\d{4})/);
+  if (dmy) return `${dmy[3]}-${String(dmy[2]).padStart(2,'0')}-${String(dmy[1]).padStart(2,'0')}`;
+  return text;
+}
+
+function formatTimeForInput(value, timezone) {
+  if (value === null || value === undefined || value === '') return '';
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    return Utilities.formatDate(value, timezone, 'HH:mm');
+  }
+  const text = String(value).trim();
+  if (!text) return '';
+  // HTML time input requires HH:mm (seconds are optional but we normalize them away).
+  const hm = text.match(/(?:^|T|\s)(\d{1,2}):(\d{2})(?::\d{2})?/);
+  if (hm) return `${String(hm[1]).padStart(2,'0')}:${hm[2]}`;
+  // Handle values such as 9 AM / 9:30 PM.
+  const ampm = text.match(/^(\d{1,2})(?::(\d{2}))?\s*(AM|PM)$/i);
+  if (ampm) {
+    let h = Number(ampm[1]);
+    const m = ampm[2] || '00';
+    const ap = ampm[3].toUpperCase();
+    if (ap === 'AM' && h === 12) h = 0;
+    if (ap === 'PM' && h < 12) h += 12;
+    return `${String(h).padStart(2,'0')}:${m}`;
+  }
+  return text;
+}
+
+function getReportById(id, userId, userName, role) {
+  // تعديل التقرير يقرأ السطر مباشرة من Reports Sheet، وليس allReports cache.
+  if (!reportsSheet || reportsSheet.getLastRow() < 2) {
+    return {status:"error", message:"Report not found"};
+  }
+
+  const targetId = String(id ?? "").trim();
+  if (!targetId) return {status:"error", message:"Report ID is required"};
+
+  const range = reportsSheet.getDataRange();
+  const data = range.getValues();
+  const displayData = range.getDisplayValues();
+  const headers = data.shift();
+  const displayRows = displayData.slice(1);
+  const idCol = getColumnIndex(headers, ["id", "reportId", "معرف التقرير", "رقم التقرير"], 0);
+  const rowIndex = data.findIndex(r => String(r[idCol] ?? "").trim() === targetId);
+
+  if (rowIndex === -1) return {status:"error", message:"Report not found"};
+
+  // A normal user may open/edit only their own reports.
+  const ownerIdCol = getColumnIndex(headers, ["createdById"], -1);
+  const ownerNameCol = getColumnIndex(headers, ["createdByName"], -1);
+  const isAdmin = String(role || "").toLowerCase() === "admin";
+  if (!isAdmin) {
+    const reportOwnerId = ownerIdCol >= 0 ? String(data[rowIndex][ownerIdCol] || "").trim() : "";
+    const reportOwnerName = ownerNameCol >= 0 ? String(data[rowIndex][ownerNameCol] || "").trim() : "";
+    const requestedId = String(userId || "").trim();
+    const requestedName = String(userName || "").trim();
+    const ownsReport = (requestedId && reportOwnerId && requestedId === reportOwnerId) ||
+                       (requestedName && reportOwnerName && requestedName === reportOwnerName);
+    if (!ownsReport) return {status:"error", message:"ليس لديك صلاحية الوصول إلى هذا التقرير"};
+  }
+
+  const row = data[rowIndex];
+  const displayRow = displayRows[rowIndex] || [];
+  const report = {};
+
+  headers.forEach((h, i) => {
+    const key = String(h ?? "").trim();
+    if (!key) return;
+    if (key === "participants" || key === "promoters") {
+      try { report[key] = JSON.parse(row[i] || "[]"); }
+      catch (e) { report[key] = []; }
+    } else {
+      report[key] = row[i];
+    }
+  });
+
+  // Normalize the three fields specifically for HTML <input> elements.
+  // This also supports Arabic/alternative column names in Reports.
+  const dateCol = getColumnIndex(headers, ["date", "التاريخ", "تاريخ التقرير"], -1);
+  const fromCol = getColumnIndex(headers, ["timeFrom", "timefrom", "from", "من الساعة", "وقت البداية", "من"], -1);
+  const toCol = getColumnIndex(headers, ["timeTo", "timeto", "to", "إلى الساعة", "الى الساعة", "وقت النهاية", "إلى", "الى"], -1);
+  const timezone = aSheet.getSpreadsheetTimeZone() || Session.getScriptTimeZone() || 'GMT';
+
+  if (dateCol !== -1) report.date = formatDateForInput(row[dateCol], timezone);
+  if (fromCol !== -1) report.timeFrom = formatTimeForInput(row[fromCol], timezone);
+  if (toCol !== -1) report.timeTo = formatTimeForInput(row[toCol], timezone);
+
+  report.sales = [];
+  report.gifts = [];
+  report.promoters = Array.isArray(report.promoters) ? report.promoters : [];
+
+  const sales = aSheet.getSheetByName("sales");
+  if (sales && sales.getLastRow() > 1) {
+    sales.getDataRange().getValues().slice(1).forEach(r => {
+      if (String(r[0] ?? "").trim() !== targetId) return;
+      report.sales.push({
+        product:r[1], price:r[2], quantity:r[3], discount:r[4], notes:r[5]
+      });
+    });
+  }
+
+  const gifts = aSheet.getSheetByName("waste");
+  if (gifts && gifts.getLastRow() > 1) {
+    gifts.getDataRange().getValues().slice(1).forEach(r => {
+      if (String(r[0] ?? "").trim() !== targetId) return;
+      report.gifts.push({item:r[1], quantity:r[2], notes:r[3]});
+    });
+  }
+
+  if (promotersSheet && promotersSheet.getLastRow() > 1) {
+    promotersSheet.getDataRange().getValues().slice(1).forEach(r => {
+      if (String(r[0] ?? "").trim() === targetId && r[1]) report.promoters.push(r[1]);
+    });
+  }
+
+  return {status:"success", report:report};
+}
+
+function addLocation(payload) {
+  const sheet = aSheet.getSheetByName("Locations");
+  if (!sheet) throw new Error("Sheet 'Locations' غير موجودة");
+
+  payload = payload || {};
+  const type = String(payload.type || payload.locationType || "").trim().toLowerCase();
+  let gov = String(payload.gov ?? payload.governorate ?? payload.name ?? payload.value ?? "").trim();
+  let region = String(payload.region ?? payload.area ?? "").trim();
+  let market = String(payload.market ?? payload.marketName ?? payload.shop ?? "").trim();
+
+  if (type === "governorate" || type === "gov") {
+    if (!gov) throw new Error("اسم المحافظة مطلوب");
+    region = ""; market = "";
+  } else if (type === "region") {
+    if (!gov) throw new Error("يجب اختيار المحافظة أولاً");
+    if (!region) region = String(payload.name ?? payload.value ?? "").trim();
+    if (!region) throw new Error("اسم المنطقة مطلوب");
+    market = "";
+  } else if (type === "market" || type === "shop") {
+    if (!gov) throw new Error("يجب اختيار المحافظة أولاً");
+    if (!region) throw new Error("يجب اختيار المنطقة أولاً");
+    if (!market) market = String(payload.name ?? payload.value ?? "").trim();
+    if (!market) throw new Error("اسم المحل مطلوب");
+  } else {
+    throw new Error("نوع الموقع غير صحيح");
+  }
+
+  if (sheet.getLastRow() > 1) {
+    const rows = sheet.getRange(2,1,sheet.getLastRow()-1,3).getValues();
+    const dup = rows.some(r =>
+      String(r[0]||"").trim() === gov &&
+      String(r[1]||"").trim() === region &&
+      String(r[2]||"").trim() === market
+    );
+    if (dup) throw new Error("هذه البيانات موجودة مسبقاً");
+  }
+
+  sheet.appendRow([gov,region,market]);
+  cache.remove("initialData");
+  cache.remove("allReports");
+  return {status:"success", message:"تمت إضافة البيانات بنجاح", location:{gov,region,market}};
+}
+
+
+function refreshCache() {
+  cache.remove("initialData");
+  cache.remove("allReports");
+  const data = getInitialData(true);
+  return {status:"success", message:"تم تحديث البيانات والكاش بنجاح", data:data};
+}

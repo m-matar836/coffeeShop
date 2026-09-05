@@ -11,6 +11,7 @@ const promotersSheet = aSheet.getSheetByName("EmployeesInPoint");
 const usersSheet = aSheet.getSheetByName("Users");
 const cache = CacheService.getScriptCache();
 const CACHE_EXPIRATION_SECONDS = 3600;
+const INITIAL_DATA_CACHE_KEY = "initialData_v17-point-filter";
 
 function doGet(e) {
   try {
@@ -86,7 +87,7 @@ function uniqueStrings(values) {
 }
 
 function getInitialData(forceRefresh) {
-  const key = "initialData";
+  const key = INITIAL_DATA_CACHE_KEY;
   if (!forceRefresh) {
     const cached = cache.get(key);
     if (cached) return JSON.parse(cached);
@@ -124,6 +125,7 @@ function getInitialData(forceRefresh) {
     const companyCol = getColumnIndex(headers,["الشركة","company"],3);
     const categoryCol = getColumnIndex(headers,["تصنيف المادة","category","التصنيف"],5);
     const cancelledCol = getColumnIndex(headers,["إلغاء المادة","cancelled","canceled","الغاء المادة"],6);
+    const pointCol = getColumnIndex(headers,["point","النقطة","الفرع","اسم الفرع"],7);
 
     data.slice(1).forEach(r => {
       const campaign = String(r[campaignCol] ?? "").trim();
@@ -135,6 +137,7 @@ function getInitialData(forceRefresh) {
         price:Number(r[priceCol]) || 0,
         company:String(r[companyCol] ?? "").trim(),
         category:String(r[categoryCol] ?? "").trim(),
+        point:String(r[pointCol] ?? "").trim(),
         cancelled:false
       });
     });

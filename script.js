@@ -16,7 +16,7 @@ function calculateSalesTotal(price, quantity, discount) {
 //   script.js - النسخة النهائية مع إصلاح مشكلة تفريغ الحقول
 // ===================================================================
 
-const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbwDnEGjL3aiC5AmdyOwBNJCEnrXJTslMS_sGkhzEOUzU_6YSmpXmeWbYfJwv9jbPTym/exec";
+const SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyC-2u2PriEzyoA5nq6tSKRrQkCjGKkxa8EGhiT9WIQICNUlqXksQaEmzzUe_sOZEE/exec";
 const CACHE_DURATION_MINUTES = 1440;
 const FORM_STATE_KEY = 'reportFormLastState'; 
 const EDIT_STATE_KEY = 'reportToEdit';
@@ -209,7 +209,7 @@ async function getDbData() {
 // ===================================================================
 //                 CACHE REFRESH / FAST DATA UPDATE
 // ===================================================================
-const APP_DB_VERSION = 'v16-location-buttons-final';
+const APP_DB_VERSION = 'v17-point-filter';
 const APP_DB_KEY = `appDB_${APP_DB_VERSION}`;
 const APP_DB_TS_KEY = `dbCacheTimestamp_${APP_DB_VERSION}`;
 
@@ -576,14 +576,25 @@ async function handleReportPage() {
         return [...map.values()];
     };
 
+    const normalizePoint = value => String(value ?? '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const productBelongsToSelectedBranch = product => {
+        const selectedBranch = normalizePoint($(marketSelect).val());
+        if (!selectedBranch) return true;
+        const point = normalizePoint(product?.point);
+        if (!point) return false;
+        if (['all','*','كل','كافة','جميع','كل الفروع','جميع الفروع','شاملة'].includes(point)) return true;
+        return point.split(/[,،;؛|\n]+/).map(normalizePoint).filter(Boolean).includes(selectedBranch);
+    };
+    const branchProducts = () => allProducts().filter(productBelongsToSelectedBranch);
     const normalizeCategory = value => String(value ?? '').trim().replace(/\s+/g, ' ');
-    const saleProducts = () => allProducts();
-    const tastingProducts = () => allProducts().filter(p => normalizeCategory(p.category) === 'مادة تذوق');
+    const saleProducts = () => branchProducts();
+    const tastingProducts = () => branchProducts().filter(p => normalizeCategory(p.category) === 'مادة تذوق');
     // الهدايا مستقلة عن الباركود والحملة. إذا أضيف تصنيف "هدايا" لاحقاً سيستخدمه النظام،
     // وإلا يعرض جميع المواد غير الملغاة حتى يمكن اختيار الهدية.
     const giftProducts = () => {
-        const tagged = allProducts().filter(p => ['هدية','هدايا'].includes(normalizeCategory(p.category)));
-        return tagged.length ? tagged : allProducts();
+        const filtered = branchProducts();
+        const tagged = filtered.filter(p => ['هدية','هدايا'].includes(normalizeCategory(p.category)));
+        return tagged.length ? tagged : filtered;
     };
 
     const initSelect2 = (selector, placeholder, allowTags = false) => {
@@ -902,6 +913,23 @@ async function handleReportPage() {
         const gov = $(governorateSelect).val();
         const region = $(this).val();
         populateSelect(marketSelect, unique((DB.locations || []).filter(l => String(l.gov) === String(gov) && String(l.region) === String(region)).map(l => l.market)));
+    });
+    $(marketSelect).on('change.branchProductFilter', function() {
+        barcodeIndexCache = null;
+        const allowedSales = new Set(saleProducts().map(p => String(p.name)));
+        salesTableBody.querySelectorAll('tr').forEach(row => {
+            const name = String($(row.querySelector('.sale-product')).val() || '');
+            if (name && !allowedSales.has(name)) row.remove();
+        });
+        const allowedTasting = new Set(tastingProducts().map(p => String(p.name)));
+        const allowedGifts = new Set(giftProducts().map(p => String(p.name)));
+        giftsTableBody.querySelectorAll('tr').forEach(row => {
+            const name = String($(row.querySelector('.gift-item')).val() || '');
+            if (name && !allowedGifts.has(name) && !allowedTasting.has(name)) row.remove();
+        });
+        updateSaleTotals();
+        isFormDirty = true;
+        saveFormState();
     });
 
     // Promoters: all available checkboxes, with a maximum of four values stored to match the existing sheet structure.

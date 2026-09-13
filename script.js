@@ -567,12 +567,17 @@ async function handleReportPage() {
         const list = Array.isArray(source)
             ? source
             : Object.values(source).flat();
+        return list.filter(p =>
+            p && p.name &&
+            !(p.cancelled === true || ['true','1','yes','نعم'].includes(String(p.cancelled ?? '').trim().toLowerCase()))
+        );
+    };
+
+    // مادة ممكن يتكرر اسمها بأكثر من سطر بالـ Products (سطر لكل فرع مثلاً).
+    // لازم نحذف التكرار *بعد* فلترة الفرع، مش قبلها، وإلا بيضيع سطر الفرع التاني.
+    const dedupeProductsByName = list => {
         const map = new Map();
-        list.forEach(p => {
-            if (!p || !p.name) return;
-            if (p.cancelled === true || ['true','1','yes','نعم'].includes(String(p.cancelled ?? '').trim().toLowerCase())) return;
-            if (!map.has(String(p.name))) map.set(String(p.name), p);
-        });
+        list.forEach(p => { if (!map.has(String(p.name))) map.set(String(p.name), p); });
         return [...map.values()];
     };
 
@@ -585,7 +590,7 @@ async function handleReportPage() {
         if (['all','*','كل','كافة','جميع','كل الفروع','جميع الفروع','شاملة'].includes(point)) return true;
         return point.split(/[,،;؛|\n]+/).map(normalizePoint).filter(Boolean).includes(selectedBranch);
     };
-    const branchProducts = () => allProducts().filter(productBelongsToSelectedBranch);
+    const branchProducts = () => dedupeProductsByName(allProducts().filter(productBelongsToSelectedBranch));
     const normalizeCategory = value => String(value ?? '').trim().replace(/\s+/g, ' ');
     const saleProducts = () => branchProducts();
     const tastingProducts = () => branchProducts().filter(p => normalizeCategory(p.category) === 'مادة تذوق');

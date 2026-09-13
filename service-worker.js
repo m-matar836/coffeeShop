@@ -1,4 +1,4 @@
-const CACHE_NAME = 'festival-app-v16';
+const CACHE_NAME = 'festival-app-v18-branch-fix';
 const APP_SHELL = [
   './index.html',
   './reports.html',
